@@ -4,9 +4,7 @@
  * License: Apache v2.0 <http://www.apache.org/licenses/LICENSE-2.0.html>
  */
 
-'use strict';
-
-const {mixp} = require('./util');
+import { mixp } from "./util.js";
 
 /**
  * Noisy edges is a variant of midpoint subdivision that keeps the lines
@@ -21,27 +19,29 @@ const {mixp} = require('./util');
  * not subdivided further.
  */
 const divisor = 0x10000000;
-exports.recursiveSubdivision = (length, amplitude, randInt) =>
-    function recur(a, b, p, q) {
-        let dx = a[0] - b[0], dy = a[1] - b[1];
-        if (dx*dx + dy*dy < length*length) { return [b]; }
-        
-        let ap = mixp([], a, p, 0.5),
-            bp = mixp([], b, p, 0.5),
-            aq = mixp([], a, q, 0.5),
-            bq = mixp([], b, q, 0.5);
+export function recursiveSubdivision (length, amplitude, randInt)
+{
+  return function recur(a, b, p, q) {
+    let dx = a[0] - b[0], dy = a[1] - b[1];
+    if (dx*dx + dy*dy < length*length) { return [b]; }
 
-        let division = 0.5 * (1 - amplitude) + randInt(divisor)/divisor * amplitude;
-        let center = mixp([], p, q, division);
-        
-        let results1 = recur(a, center, ap, aq),
-            results2 = recur(center, b, bp, bq);
+    let ap = mixp([], a, p, 0.5),
+        bp = mixp([], b, p, 0.5),
+        aq = mixp([], a, q, 0.5),
+        bq = mixp([], b, q, 0.5);
 
-        return results1.concat(results2);
-    };
+    let division = 0.5 * (1 - amplitude) + randInt(divisor)/divisor * amplitude;
+    let center = mixp([], p, q, division);
+
+    let results1 = recur(a, center, ap, aq),
+        results2 = recur(center, b, bp, bq);
+
+    return results1.concat(results2);
+  };
+}
 
 
-exports.assign_s_segments = function(s_lines, mesh, {amplitude, length}, randInt) {
+export function assign_s_segments(s_lines, mesh, {amplitude, length}, randInt) {
     s_lines.length = mesh.numSides;
     for (let s = 0; s < mesh.numSides; s++) {
         let t0 = mesh.s_inner_t(s),
@@ -52,7 +52,7 @@ exports.assign_s_segments = function(s_lines, mesh, {amplitude, length}, randInt
             if (mesh.s_ghost(s)) {
                 s_lines[s] = [mesh.t_vertex[t1]];
             } else {
-                s_lines[s] = exports.recursiveSubdivision(length, amplitude, randInt)(
+                s_lines[s] = recursiveSubdivision(length, amplitude, randInt)(
                    mesh.t_vertex[t0],
                    mesh.t_vertex[t1],
                    mesh.r_vertex[r0],

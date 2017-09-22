@@ -40,7 +40,7 @@ function find_coasts_t(mesh, r_ocean) {
  *    was reached with distance 2 and another with distance 3, and we need
  *    to revisit that node and make sure it's set to 2.
  */
-exports.assign_t_elevation = function(
+export function assign_t_elevation(
     t_elevation, t_coastdistance, t_downslope_s,
     mesh,
     r_ocean, r_water, randInt
@@ -50,7 +50,7 @@ exports.assign_t_elevation = function(
     t_elevation.length = mesh.numTriangles;
     t_coastdistance.fill(null);
     t_downslope_s.fill(-1);
-    
+
     const t_ocean = (t) => r_ocean[mesh.s_begin_r(3*t)];
     const r_lake = (r) => r_water[r] && !r_ocean[r];
     const s_lake = (s) => r_lake(mesh.s_begin_r(s)) || r_lake(mesh.s_end_r(s));
@@ -59,7 +59,7 @@ exports.assign_t_elevation = function(
     let queue_t = find_coasts_t(mesh, r_ocean);
     queue_t.forEach((t) => { t_coastdistance[t] = 0; });
     let minDistance = 1, maxDistance = 1;
-    
+
     while (queue_t.length > 0) {
         let current_t = queue_t.shift();
         mesh.t_circulate_s(out_s, current_t);
@@ -89,13 +89,13 @@ exports.assign_t_elevation = function(
 };
 
 
-/** 
+/**
  * Set r elevation to the average of the t elevations. There's a
  * corner case though: it is possible for an ocean region (r) to be
  * surrounded by coastline corners (t), and coastlines are set to 0
  * elevation. This means the region elevation would be 0. To avoid
  * this, I subtract a small amount for ocean regions. */
-exports.assign_r_elevation = function(r_elevation, mesh, t_elevation, r_ocean) {
+export function assign_r_elevation(r_elevation, mesh, t_elevation, r_ocean) {
     const max_ocean_elevation = -0.01;
     r_elevation.length = mesh.numRegions;
     let out_t = [];
@@ -120,12 +120,12 @@ exports.assign_r_elevation = function(r_elevation, mesh, t_elevation, r_ocean) {
  * (1-Z), for all the non-ocean regions.
  */
 // TODO: this messes up lakes, as they will no longer all be at the same elevation
-exports.redistribute_t_elevation = function(t_elevation, mesh) {
+export function redistribute_t_elevation(t_elevation, mesh) {
     // NOTE: This is the same algorithm I used in 2010, because I'm
     // trying to recreate that map generator to some extent. I don't
     // think it's a great approach for other games but it worked well
     // enough for that one.
-    
+
     // SCALE_FACTOR increases the mountain area. At 1.0 the maximum
     // elevation barely shows up on the map, so we set it to 1.1.
     const SCALE_FACTOR = 1.1;
@@ -136,7 +136,7 @@ exports.redistribute_t_elevation = function(t_elevation, mesh) {
             nonocean_t.push(t);
         }
     }
-    
+
     nonocean_t.sort((t1, t2) => t_elevation[t1] - t_elevation[t2]);
 
     for (let i = 0; i < nonocean_t.length; i++) {

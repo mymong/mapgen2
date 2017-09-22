@@ -13,13 +13,39 @@
  * limitations under the License.
  */
 
-const util =         require('./util');
-const Water =        require('./water');
-const Elevation =    require('./elevation');
-const Rivers =       require('./rivers');
-const Moisture =     require('./moisture');
-const Biomes =       require('./biomes');
-const NoisyEdges =   require('./noisy-edges');
+import {
+	randomShuffle
+} from "./util.js";
+
+import {
+	assign_r_water,
+	assign_r_ocean
+} from "./Water.js";
+
+import {
+	assign_t_elevation,
+	redistribute_t_elevation,
+	assign_r_elevation
+} from "./elevation.js";
+
+import {
+	find_spring_t,
+	assign_s_flow
+} from "./rivers.js";
+
+import {
+	assign_r_moisture,
+	find_moisture_seeds_r,
+	redistribute_r_moisture
+} from "./moisture.js";
+
+import {
+	assign_r_coast,
+	assign_r_biome
+} from "./biomes.js";
+import {
+	assign_s_segments
+} from "./noisy-edges.js";
 
 /**
  * Map generator
@@ -30,73 +56,93 @@ const NoisyEdges =   require('./noisy-edges');
  * noisyEdgeOptions: {length, amplitude, seed}
  * makeRandInt: function(seed) -> function(N) -> an int from 0 to N-1
  */
-class Map {
-    constructor(mesh, noisyEdgeOptions, makeRandInt) {
-        this.mesh = mesh;
-        this.makeRandInt = makeRandInt;
-        this.s_lines = NoisyEdges.assign_s_segments(
-            [],
-            this.mesh,
-            noisyEdgeOptions,
-            this.makeRandInt(noisyEdgeOptions.seed)
-        );
 
-        this.r_water = [];
-        this.r_ocean = [];
-        this.t_coastdistance = [];
-        this.t_elevation = [];
-        this.t_downslope_s = [];
-        this.r_elevation = [];
-        this.s_flow = [];
-        this.r_waterdistance = [];
-        this.r_moisture = [];
-        this.r_coast = [];
-        this.r_biome = [];
-    }
+export function generateMap ({
+	noise,
+	mesh,
+	noisyEdgeOptions,
+	makeRandInt,
+	shape = { round: 0.5, inflate: 0.4 },
+	numRivers = 30,
+	drainageSeed = 0,
+	riverSeed = 0,
+	noisyEdge = { length: 10, amplitude: 0.2, seed: 0 },
+	biomeBias = { temperature: 0, moisture: 0 }
+} = {})
+{
+	const s_lines = assign_s_segments(
+		[],
+		mesh,
+		noisyEdgeOptions,
+		makeRandInt(noisyEdgeOptions.seed)
+	);
 
-    calculate(options) {
-        options = Object.assign({
-            noise: null, // required: function(nx, ny) -> number from -1 to +1
-            shape: {round: 0.5, inflate: 0.4},
-            numRivers: 30,
-            drainageSeed: 0,
-            riverSeed: 0,
-            noisyEdge: {length: 10, amplitude: 0.2, seed: 0},
-            biomeBias: {temperature: 0, moisture: 0},
-        }, options);
+	const r_water = assign_r_water(mesh, noise, shape);
+	const r_ocean = assign_r_ocean(mesh, r_water);
+	const t_coastdistance = [];
+	const t_elevation = [];
+	const t_downslope_s = [];
+	const r_elevation = [];
+	const s_flow = [];
+	const r_waterdistance = [];
+	const r_moisture = [];
+	const r_coast = [];
+	const r_biome = [];
 
-        Water.assign_r_water(this.r_water, this.mesh, options.noise, options.shape);
-        Water.assign_r_ocean(this.r_ocean, this.mesh, this.r_water);
-        
-        Elevation.assign_t_elevation(
-            this.t_elevation, this.t_coastdistance, this.t_downslope_s,
-            this.mesh,
-            this.r_ocean, this.r_water, this.makeRandInt(options.drainageSeed)
-        );
-        Elevation.redistribute_t_elevation(this.t_elevation, this.mesh);
-        Elevation.assign_r_elevation(this.r_elevation, this.mesh, this.t_elevation, this.r_ocean);
 
-        this.spring_t = Rivers.find_spring_t(this.mesh, this.r_water, this.t_elevation, this.t_downslope_s);
-        util.randomShuffle(this.spring_t, this.makeRandInt(options.riverSeed));
-        
-        this.river_t = this.spring_t.slice(0, options.numRivers);
-        Rivers.assign_s_flow(this.s_flow, this.mesh, this.t_downslope_s, this.river_t, this.t_elevation);
-        
-        Moisture.assign_r_moisture(
-            this.r_moisture, this.r_waterdistance,
-            this.mesh,
-            this.r_water, Moisture.find_moisture_seeds_r(this.mesh, this.s_flow, this.r_ocean, this.r_water)
-        );
-        Moisture.redistribute_r_moisture(this.r_moisture, this.mesh, this.r_water);
+	assign_t_elevation(
+		t_elevation,
+		t_coastdistance,
+		t_downslope_s,
+		mesh,
+		r_ocean,
+		r_water,
+		makeRandInt(drainageSeed)
+	);
 
-        Biomes.assign_r_coast(this.r_coast, this.mesh, this.r_ocean);
-        Biomes.assign_r_biome(
-            this.r_biome,
-            this.mesh,
-            this.r_ocean, this.r_water, this.r_coast, this.r_elevation, this.r_moisture,
-            options.biomeBias
-        );
-    }
+	redistribute_t_elevation(t_elevation, mesh);
+	assign_r_elevation(r_elevation, mesh, t_elevation, r_ocean);
+
+	const spring_t = find_spring_t(mesh, r_water, t_elevation, t_downslope_s);
+	randomShuffle(spring_t, makeRandInt(riverSeed));
+
+	const river_t = spring_t.slice(0, numRivers);
+	assign_s_flow(s_flow, mesh, t_downslope_s, river_t, t_elevation);
+
+	const moisture_seeds = find_moisture_seeds_r(
+		mesh,
+		s_flow,
+		r_ocean,
+		r_water
+	);
+
+	assign_r_moisture(
+		r_moisture,
+		r_waterdistance,
+		mesh,
+		r_water,
+		moisture_seeds
+	);
+	redistribute_r_moisture(r_moisture, mesh, r_water);
+
+	assign_r_coast(r_coast, mesh, r_ocean);
+	assign_r_biome(
+			r_biome,
+			mesh,
+			r_ocean,
+			r_water,
+			r_coast,
+			r_elevation,
+			r_moisture,
+			biomeBias
+	);
+
+	return {
+		r_biome,
+		r_elevation,
+		mesh
+	}
 }
 
-module.exports = Map;
+
+

@@ -9,7 +9,7 @@
 /**
  * Find regions adjacent to rivers; out_r should be a Set
  */
-exports.find_riverbanks_r = function(out_r, mesh, s_flow) {
+export function find_riverbanks_r(out_r, mesh, s_flow) {
     for (let s = 0; s < mesh.numSolidSides; s++) {
         if (s_flow[s] > 0) {
             out_r.add(mesh.s_begin_r(s));
@@ -22,7 +22,7 @@ exports.find_riverbanks_r = function(out_r, mesh, s_flow) {
 /**
  * Find lakeshores -- regions adjacent to lakes; out_r should be a Set
  */
-exports.find_lakeshores_r = function(out_r, mesh, r_ocean, r_water) {
+export function find_lakeshores_r(out_r, mesh, r_ocean, r_water) {
     for (let s = 0; s < mesh.numSolidSides; s++) {
         let r0 = mesh.s_begin_r(s),
             r1 = mesh.s_end_r(s);
@@ -37,10 +37,10 @@ exports.find_lakeshores_r = function(out_r, mesh, r_ocean, r_water) {
 /**
  * Find regions that have maximum moisture; returns a Set
  */
-exports.find_moisture_seeds_r = function(mesh, s_flow, r_ocean, r_water) {
+export function find_moisture_seeds_r(mesh, s_flow, r_ocean, r_water) {
     let seeds_r = new Set();
-    exports.find_riverbanks_r(seeds_r, mesh, s_flow);
-    exports.find_lakeshores_r(seeds_r, mesh, r_ocean, r_water);
+    find_riverbanks_r(seeds_r, mesh, s_flow);
+    find_lakeshores_r(seeds_r, mesh, r_ocean, r_water);
     return seeds_r;
 };
 
@@ -51,7 +51,7 @@ exports.find_moisture_seeds_r = function(mesh, s_flow, r_ocean, r_water) {
  * water. Lakeshores and riverbanks are distance 0. Moisture will be
  * 1.0 at distance 0 and go down to 0.0 at the maximum distance.
  */
-exports.assign_r_moisture = function(
+export function assign_r_moisture(
     r_moisture, r_waterdistance,
     mesh,
     r_water, seed_r /* Set */
@@ -59,7 +59,7 @@ exports.assign_r_moisture = function(
     r_waterdistance.length = mesh.numRegions;
     r_moisture.length = mesh.numRegions;
     r_waterdistance.fill(null);
-    
+
     let out_r = [];
     let queue_r = Array.from(seed_r);
     let maxDistance = 1;
@@ -87,7 +87,7 @@ exports.assign_r_moisture = function(
  * Redistribute moisture values evenly so that all moistures
  * from 0 to 1 are equally represented.
  */
-exports.redistribute_r_moisture = function(r_moisture, mesh, r_water) {
+export function redistribute_r_moisture(r_moisture, mesh, r_water) {
     let land_r = [];
     for (let r = 0; r < mesh.numSolidRegions; r++) {
         if (!r_water[r]) {
@@ -96,7 +96,7 @@ exports.redistribute_r_moisture = function(r_moisture, mesh, r_water) {
     }
 
     land_r.sort((r1, r2) => r_moisture[r1] - r_moisture[r2]);
-    
+
     for (let i = 0; i < land_r.length; i++) {
         r_moisture[land_r[i]] = i / (land_r.length - 1);
     }
