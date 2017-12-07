@@ -1,148 +1,103 @@
-/*
- * From http://www.redblobgames.com/maps/mapgen2/
- * Copyright 2017 Red Blob Games <redblobgames@gmail.com>
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *      http://www.apache.org/licenses/LICENSE-2.0
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
-import {
-	randomShuffle
-} from "./util.js";
+import { generateMap } from "./generateMap.js";
+import { makeRandInt, makeRandFloat } from "./util.js";
+import { TriangleMesh } from "./DualMesh/index.js";
+import { createMesh } from "./DualMesh/create.js";
+import { SimplexNoise } from "./SimplexNoise/index.js";
 
-import {
-	assign_r_water,
-	assign_r_ocean
-} from "./Water.js";
+const spacing = {
+  tiny: 38,
+  small: 26,
+  medium: 18,
+  large: 12.8,
+  huge: 9,
+	stupid: 4
+};
 
-import {
-	assign_t_elevation,
-	redistribute_t_elevation,
-	assign_r_elevation
-} from "./elevation.js";
+const canvas = document.createElement('canvas');
+const context = canvas.getContext('2d');
+document.body.appendChild(canvas);
+const biomeColors = {
+  OCEAN: "#44447a",
+  COAST: "#33335a",
+  LAKESHORE: "#225588",
+  LAKE: "#336699",
+  RIVER: "#225588",
+  MARSH: "#2f6666",
+  ICE: "#99ffff",
+  BEACH: "#a09077",
+  SNOW: "#ffffff",
+  TUNDRA: "#bbbbaa",
+  BARE: "#888888",
+  SCORCHED: "#555555",
+  TAIGA: "#99aa77",
+  SHRUBLAND: "#889977",
+  TEMPERATE_DESERT: "#c9d29b",
+  TEMPERATE_RAIN_FOREST: "#448855",
+  TEMPERATE_DECIDUOUS_FOREST: "#679459",
+  GRASSLAND: "#88aa55",
+  SUBTROPICAL_DESERT: "#d2b98b",
+  TROPICAL_RAIN_FOREST: "#337755",
+  TROPICAL_SEASONAL_FOREST: "#559944",
+};
 
-import {
-	find_spring_t,
-	assign_s_flow
-} from "./rivers.js";
+const size = "huge";
+const mesh = new TriangleMesh(createMesh(spacing[size], makeRandFloat(12345)))
 
-import {
-	assign_r_moisture,
-	find_moisture_seeds_r,
-	redistribute_r_moisture
-} from "./moisture.js";
+function draw (seed) {
+	const noise = new SimplexNoise(makeRandFloat(seed));
+	const world = generateMap({
+		noise: noise,
+		mesh: mesh,
+		noisyEdgeOptions: {amplitude: 0.2, length: 4, seed: 12345},
+		makeRandInt: makeRandInt
+	});
+	context.clearRect(0, 0, canvas.width, canvas.height);
+	let triangles = [];
+	for (let s = 0; s < mesh.numSolidSides; s++) {
+	    let r = mesh.s_begin_r(s),
+	        t1 = mesh.s_inner_t(s),
+	        t2 = mesh.s_outer_t(s);
+			const biome = world.r_biome[r];
 
-import {
-	assign_r_coast,
-	assign_r_biome
-} from "./biomes.js";
-import {
-	assign_s_segments
-} from "./noisy-edges.js";
-
-/**
- * Map generator
- *
- * Map coordinates are 0 ≤ x ≤ 1000, 0 ≤ y ≤ 1000.
- *
- * mesh: DualMesh
- * noisyEdgeOptions: {length, amplitude, seed}
- * makeRandInt: function(seed) -> function(N) -> an int from 0 to N-1
- */
-
-export function generateMap ({
-	noise,
-	mesh,
-	noisyEdgeOptions,
-	makeRandInt,
-	shape = { round: 0.5, inflate: 0.4 },
-	numRivers = 30,
-	drainageSeed = 0,
-	riverSeed = 0,
-	noisyEdge = { length: 10, amplitude: 0.2, seed: 0 },
-	biomeBias = { temperature: 0, moisture: 0 }
-} = {})
-{
-	const s_lines = assign_s_segments(
-		[],
-		mesh,
-		noisyEdgeOptions,
-		makeRandInt(noisyEdgeOptions.seed)
-	);
-
-	const r_water = assign_r_water(mesh, noise, shape);
-	const r_ocean = assign_r_ocean(mesh, r_water);
-	const t_coastdistance = [];
-	const t_elevation = [];
-	const t_downslope_s = [];
-	const r_elevation = [];
-	const s_flow = [];
-	const r_waterdistance = [];
-	const r_moisture = [];
-	const r_coast = [];
-	const r_biome = [];
-
-
-	assign_t_elevation(
-		t_elevation,
-		t_coastdistance,
-		t_downslope_s,
-		mesh,
-		r_ocean,
-		r_water,
-		makeRandInt(drainageSeed)
-	);
-
-	redistribute_t_elevation(t_elevation, mesh);
-	assign_r_elevation(r_elevation, mesh, t_elevation, r_ocean);
-
-	const spring_t = find_spring_t(mesh, r_water, t_elevation, t_downslope_s);
-	randomShuffle(spring_t, makeRandInt(riverSeed));
-
-	const river_t = spring_t.slice(0, numRivers);
-	assign_s_flow(s_flow, mesh, t_downslope_s, river_t, t_elevation);
-
-	const moisture_seeds = find_moisture_seeds_r(
-		mesh,
-		s_flow,
-		r_ocean,
-		r_water
-	);
-
-	assign_r_moisture(
-		r_moisture,
-		r_waterdistance,
-		mesh,
-		r_water,
-		moisture_seeds
-	);
-	redistribute_r_moisture(r_moisture, mesh, r_water);
-
-	assign_r_coast(r_coast, mesh, r_ocean);
-	assign_r_biome(
-			r_biome,
-			mesh,
-			r_ocean,
-			r_water,
-			r_coast,
-			r_elevation,
-			r_moisture,
-			biomeBias
-	);
-
-	return {
-		r_biome,
-		r_elevation,
-		mesh
+			context.beginPath();
+			context.lineTo(mesh.r_vertex[r][0], mesh.r_vertex[r][1]);
+			context.lineTo(mesh.t_vertex[t1][0], mesh.t_vertex[t1][1]);
+			context.lineTo(mesh.t_vertex[t2][0], mesh.t_vertex[t2][1]);
+			context.closePath();
+			context.fillStyle = biomeColors[biome];
+			context.fill();
 	}
+	//
+	// console.log(triangles);
+	//
+	// let polygons = [];
+	// for (let r = 0; r < world.mesh.numSolidRegions; r++) {
+  //   const biome = world.r_biome[r];
+	// 	const vertices = world.mesh.r_circulate_t([], r).map((t) => world.mesh.t_vertex[t]);
+	// 	context.beginPath();
+	// 	for (const [x, y] of vertices) {
+	// 		context.lineTo(x, y);
+	// 	}
+	// 	context.closePath();
+	// 	context.fillStyle = biomeColors[biome];
+	// 	context.fill();
+	// }
 }
 
+function resize (x, y, dpi)
+{
+	canvas.width = x * dpi;
+	canvas.height = y * dpi;
+	canvas.style.width = x + "px";
+	canvas.style.height = y + "px";
+	context.scale(dpi, dpi);
+}
+
+resize(1000, 1000, devicePixelRatio);
 
 
+let i = 0;
+setInterval(function () {
+	draw(i++);
+}, 3000);
